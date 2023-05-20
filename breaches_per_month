@@ -1,0 +1,113 @@
+#!/bin/bash
+
+# # Created by Hari Chandan Pokuri 
+
+cleaned_dataset="$1"
+
+if [ -e "$cleaned_dataset" ]; then
+
+    shorten_data="shorten_data.tsv"
+    # The main variables we require are the Individuals_Affected and Month, to be extracted from the main dataset and saved in a new one.
+    cut -f 3,6 "$cleaned_dataset" > "$shorten_data"
+
+    # I have filtered the data based on month and then calculated the sum of Individuals_Affected with the same month.
+    # The data is also sorted in ascending order based on the month.
+    filtered_data="filtered_data.tsv"
+    awk -F'\t' 'BEGIN{print "Month\tIndividuals_Affected"}
+        NR > 1 {
+            sum[$2] += $1
+        }
+        END {
+            split("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec", months, " ")
+            for (i = 1; i <= 12; i++) {
+                month = (i < 10) ? "0" i : i
+                if (sum[i] > 0) {
+                    result[length(result) + 1] = sprintf("%02d", sum[i]) ":" months[i]
+                }
+            }
+            for (j = 1; j <= length(result); j++) {
+                for (k = j + 1; k <= length(result); k++) {
+                    split(result[j], parts1, ":")
+                    split(result[k], parts2, ":")
+                    if (parts1[1] > parts2[1]) {
+                        temp = result[j]
+                        result[j] = result[k]
+                        result[k] = temp
+                    }
+                }
+            }
+            for (j = 1; j <= length(result); j++) {
+                split(result[j], parts, ":")
+                print parts[2] "\t" parts[1]
+            }
+        }
+    ' "$shorten_data" | sort -k2,2n > "$filtered_data"
+
+median=$(awk -F'\t' -v median="" '
+    NR > 1 {
+        values[NR - 1] = $2
+    }
+    END {
+        n = length(values)
+        if (n % 2 == 0) {
+            median = (values[n/2] + values[n/2 + 1]) / 2
+        } else {
+            median = values[int(n/2) + 1]
+        }
+        print median
+    }
+' $filtered_data)
+
+echo $median
+
+mad=$(awk -F'\t' -v median="$median" '
+    NR > 1 {
+        values[NR - 1] = $2
+    }
+    END {
+        n = length(values)
+        for (i = 1; i <= n; i++) {
+            abs_deviation[i] = (values[i] > median) ? values[i] - median : median - values[i]
+        }
+        
+        # lets Sort the absolute deviations
+        for (i = 1; i <= n-1; i++) {
+            for (j = 1; j <= n-i; j++) {
+                if (abs_deviation[j] > abs_deviation[j+1]) {
+                    temp = abs_deviation[j]
+                    abs_deviation[j] = abs_deviation[j+1]
+                    abs_deviation[j+1] = temp
+                }
+            }
+        }
+        
+        if (n % 2 == 0) {
+            mad = (abs_deviation[n/2] + abs_deviation[n/2 + 1]) / 2
+        } else {
+            mad = abs_deviation[int(n/2) + 1]
+        }
+        print mad
+    }
+' "$filtered_data")
+
+echo $mad
+
+echo -e "Month\tIndividuals_Affected\tSymbol"
+# Read the data file line by line, excluding the header
+tail -n +2 "$filtered_data" | while IFS=$'\t' read -r month incidents; do
+    # Determine the symbol based on the incident count
+    symbol=""
+    if ((incidents > median + mad)); then
+        symbol="++"
+    elif ((incidents < median - mad)); then
+        symbol="--"
+    fi
+    
+    # Print the month, number of incidents, and symbol
+    echo -e "$month\t$incidents\t\t\t$symbol"
+done
+
+    rm $filtered_data $shorten_data
+else
+    echo "File not present"
+fi
