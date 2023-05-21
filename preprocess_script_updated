@@ -8,8 +8,6 @@
 # Find the missing values and store the updated data in new .tsv file
 output_file="updated_data.tsv"
 
-
-function datacleaning() {
     file=$1
      if [ -e "$file" ]; then  
       # Data cleaning to start
@@ -110,6 +108,3 @@ function datacleaning() {
      else
         echo "File does not exist in the directory"
     fi
-}
-
-"$@"

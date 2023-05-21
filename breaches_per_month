@@ -10,19 +10,20 @@ if [ -e "$cleaned_dataset" ]; then
     # The main variables we require are the Individuals_Affected and Month, to be extracted from the main dataset and saved in a new one.
     cut -f 3,6 "$cleaned_dataset" > "$shorten_data"
 
-    # I have filtered the data based on month and then calculated the sum of Individuals_Affected with the same month.
+    # I have filtered the data based on month and then calculated the count of Individuals_Affected with the same month.
     # The data is also sorted in ascending order based on the month.
     filtered_data="filtered_data.tsv"
     awk -F'\t' 'BEGIN{print "Month\tIndividuals_Affected"}
         NR > 1 {
-            sum[$2] += $1
+            count[$2] += 1
         }
         END {
+            delete result
             split("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec", months, " ")
             for (i = 1; i <= 12; i++) {
                 month = (i < 10) ? "0" i : i
-                if (sum[i] > 0) {
-                    result[length(result) + 1] = sprintf("%02d", sum[i]) ":" months[i]
+                if (count[i] > 0) {
+                    result[length(result) + 1] = sprintf("%02d", count[i]) ":" months[i]
                 }
             }
             for (j = 1; j <= length(result); j++) {
@@ -58,8 +59,6 @@ median=$(awk -F'\t' -v median="" '
     }
 ' $filtered_data)
 
-echo $median
-
 mad=$(awk -F'\t' -v median="$median" '
     NR > 1 {
         values[NR - 1] = $2
@@ -90,24 +89,25 @@ mad=$(awk -F'\t' -v median="$median" '
     }
 ' "$filtered_data")
 
-echo $mad
+int_mad=${mad%.*}
 
 echo -e "Month\tIndividuals_Affected\tSymbol"
 # Read the data file line by line, excluding the header
 tail -n +2 "$filtered_data" | while IFS=$'\t' read -r month incidents; do
     # Determine the symbol based on the incident count
     symbol=""
-    if ((incidents > median + mad)); then
+    # Perform floating-point comparisons using shell arithmetic
+    if (( incidents > median + int_mad )); then
         symbol="++"
-    elif ((incidents < median - mad)); then
+    elif (( incidents < median - int_mad )); then
         symbol="--"
     fi
-    
+
     # Print the month, number of incidents, and symbol
     echo -e "$month\t$incidents\t\t\t$symbol"
 done
 
-    rm $filtered_data $shorten_data
+     rm $filtered_data $shorten_data
 else
     echo "File not present"
 fi
