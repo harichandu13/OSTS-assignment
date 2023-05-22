@@ -44,26 +44,28 @@ if [ -e "$cleaned_dataset" ]; then
         }
     ' "$shorten_data" | sort -k2,2n > "$filtered_data"
 
-median=$(awk -F'\t' -v median="" '
-    NR > 1 {
-        values[NR - 1] = $2
-    }
-    END {
-        n = length(values)
-        if (n % 2 == 0) {
-            median = (values[n/2] + values[n/2 + 1]) / 2
-        } else {
-            median = values[int(n/2) + 1]
+    # Now using the Awk we will find the median of the dataset and store it in a variable named median
+    median=$(awk -F'\t' -v median="" '
+        NR > 1 {
+            values[NR - 1] = $2
         }
-        print median
-    }
-' $filtered_data)
+        END {
+            n = length(values)
+            if (n % 2 == 0) {
+                median = (values[n/2] + values[n/2 + 1]) / 2
+            } else {
+                median = values[int(n/2) + 1]
+            }
+            print median
+        }
+    ' $filtered_data)
 
-mad=$(awk -F'\t' -v median="$median" '
-    NR > 1 {
-        values[NR - 1] = $2
-    }
-    END {
+    # Lets calculate the MAD of the data and store it in a variable named mad.
+    mad=$(awk -F'\t' -v median="$median" '
+        NR > 1 {
+            values[NR - 1] = $2
+        }
+        END {
         n = length(values)
         for (i = 1; i <= n; i++) {
             abs_deviation[i] = (values[i] > median) ? values[i] - median : median - values[i]
@@ -87,27 +89,27 @@ mad=$(awk -F'\t' -v median="$median" '
         }
         print mad
     }
-' "$filtered_data")
+    ' "$filtered_data")
 
-int_mad=${mad%.*}
+    # We are making sure that float values are handled.
+    int_mad=${mad%.*}
 
-echo -e "Month\tIndividuals_Affected\tSymbol"
-# Read the data file line by line, excluding the header
-tail -n +2 "$filtered_data" | while IFS=$'\t' read -r month incidents; do
-    # Determine the symbol based on the incident count
-    symbol=""
-    # Perform floating-point comparisons using shell arithmetic
-    if (( incidents > median + int_mad )); then
-        symbol="++"
-    elif (( incidents < median - int_mad )); then
-        symbol="--"
-    fi
+    echo -e "Month\tIndividuals_Affected\tSymbol"
+    # Read the data file line by line, excluding the header
+    tail -n +2 "$filtered_data" | while IFS=$'\t' read -r month incidents; do
+        # Determine the symbol based on the incident count
+        symbol=""
+        # Now we check the comparision of the data.
+        if (( incidents > median + int_mad )); then
+            symbol="++"
+        elif (( incidents < median - int_mad )); then
+            symbol="--"
+        fi
+        # Print the month, number of incidents, and symbol
+        echo -e "$month\t$incidents\t\t\t$symbol"
+    done
 
-    # Print the month, number of incidents, and symbol
-    echo -e "$month\t$incidents\t\t\t$symbol"
-done
-
-     rm $filtered_data $shorten_data
+    rm $filtered_data $shorten_data
 else
     echo "File not present"
 fi
