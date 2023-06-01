@@ -101,9 +101,9 @@ output_file="updated_data.tsv"
             $5 = 0
             print $0
         }
-        }' "$column_drop_table1"
+        }' "$column_drop_table1" 
 
-        rm $column_drop_table1 $date_updated_file $final_table_after_cleaning $fileafter_breach $output_file
+     rm $column_drop_table1 $date_updated_file $final_table_after_cleaning $fileafter_breach $output_file
 
      else
         echo "File does not exist in the directory"
